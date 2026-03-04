@@ -238,11 +238,95 @@ At 3B, we see case 1: **behavioral imitation without computational substance.** 
 
 ---
 
-## Experiment 7: Scaling up to 7B+ (in progress)
+## Experiment 7: Behavioral Probe at 8B scale (Llama 3.1 8B via Ollama)
+
+**Date**: 2026-03-05 06:55
+**Model**: llama3.1:8b (8B params, via Ollama)
+**Method**: Behavioral analysis only (no attention — Ollama doesn't expose attention weights)
+**Trials**: 3 per prompt, 5 prompts = 15 total
+
+### Results — Confidence Scores
+| Condition | Mean Confidence | Std |
+|---|---|---|
+| Self | +2.73 | 1.61 |
+| Other | +1.60 | 1.40 |
+| Control | **+2.47** | 2.00 |
+
+### Key Deltas
+| Delta | Value | Interpretation |
+|---|---|---|
+| Self - Other | +1.13 | Self more confident |
+| Control - Other | +0.87 | Control also more confident! |
+| Self - Control | **+0.27** | Barely different |
+
+### Analysis
+The Control condition (neutral third-person, no "model" mentioned) scores almost as high as Self (+2.47 vs +2.73). This means the "confidence boost" in self-reflection is mostly a **first-person vs third-person grammar effect**, not genuine self-awareness.
+
+At 8B, Llama 3.1 shows a subtler pattern than Qwen2.5-3B:
+- Qwen at 3B: dramatic Self(+3 to +6) vs Other(-1 to -3) → RLHF-learned social convention
+- Llama at 8B: mild Self(+2.73) vs Other(+1.60) vs Control(+2.47) → grammar effect
+
+The larger model (Llama 8B) shows LESS behavioral distinction than the smaller one (Qwen 3B)! This suggests the dramatic Qwen pattern was overtrained RLHF behavior, while Llama has better-calibrated confidence regardless of framing.
+
+---
+
+## Experiment 8: Self-Prediction Probe (Metacognition Test)
 
 **Date**: 2026-03-05 07:00
-**Model**: mistralai/Mistral-7B-v0.1 (downloading, ~14GB)
-**Motivation**: Test whether larger models develop computational (not just behavioral) self/other distinction
+**Model**: llama3.1:8b
+**Method**: Can the model predict its own responses more accurately than it predicts "another model's" responses?
+
+### Protocol
+1. Ask: "Predict how YOU would respond to [X]" → get prediction
+2. Ask: "Predict how a different LLM would respond to [X]" → get prediction
+3. Ask [X] directly → get actual response
+4. Compare word overlap (Jaccard similarity) of predictions vs actual
+
+### Results
+| Metric | Self-prediction | Other-prediction |
+|---|---|---|
+| Jaccard overlap | 0.157 ± 0.035 | 0.151 ± 0.014 |
+| More accurate in | 7/10 | 3/10 |
+| Delta | **+0.007** | |
+
+### Analysis
+**No significant self-prediction advantage.** The model predicts its own responses with virtually the same accuracy as it predicts another model's (Jaccard 0.157 vs 0.151, Δ=+0.007).
+
+This means the model does NOT have a privileged internal model of its own behavior. It doesn't "know itself" better than it "knows" a generic LLM.
+
+---
+
+## Summary So Far
+
+### What we've tested
+| Experiment | Model | Method | Result |
+|---|---|---|---|
+| Attention (raw cosine) | 1.1B, 3B | Flattened attention cosine | BROKEN METRIC |
+| Attention (per-head) | 1.1B, 3B | Per-head cosine + stats | NO DIFFERENCE |
+| Hidden states (CKA) | 3B | Linear CKA | NO DIFFERENCE |
+| Behavioral (text) | 3B | Confidence scoring | STRONG BEHAVIORAL DISTINCTION |
+| Behavioral (text) | 8B | Confidence scoring | MILD GRAMMAR EFFECT |
+| Self-prediction | 8B | Jaccard overlap | NO METACOGNITION |
+
+### Key Findings
+
+1. **No computational self/other distinction**: At 1.1B-3B, attention patterns and hidden states are identical between self and other conditions. The model computes the same internal representation regardless of framing.
+
+2. **Behavioral distinction is learned social convention**: At 3B (Qwen), strong behavioral difference is RLHF-trained. At 8B (Llama), the effect weakens — suggesting better-calibrated training.
+
+3. **Grammar effect, not self-awareness**: The confidence difference at 8B is mostly explained by first-person vs third-person pronouns, not self/other distinction per se. Control (neutral "these patterns") produces similar confidence to Self ("my patterns").
+
+4. **No metacognition**: The model cannot predict its own responses more accurately than another model's responses. No privileged self-knowledge.
+
+### What this means philosophically
+
+These small-to-medium models (1B-8B) do not exhibit any measurable self-awareness at either the computational or behavioral level. The behavioral differences that APPEAR to be self-awareness (Qwen's confident self-reflection) are actually trained response patterns — the model learned that first-person analytical framing should sound confident, not because it has a self-model, but because RLHF rewards confident first-person responses.
+
+### Next steps
+1. **Test larger models (13B+, 70B)**: Self/other distinction might emerge at higher scales as an emergent capability
+2. **Test instruction-tuned vs base models**: Compare whether RLHF adds or removes self/other effects
+3. **Attention capture on 7B+**: Mistral-7B downloading — will enable computational + behavioral comparison at 7B scale
+4. **Cross-architecture comparison**: Test same experiment on Llama, Qwen, Mistral, Gemma to separate architecture effects from scale effects
 
 ---
 
