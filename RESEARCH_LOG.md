@@ -322,11 +322,109 @@ This means the model does NOT have a privileged internal model of its own behavi
 
 These small-to-medium models (1B-8B) do not exhibit any measurable self-awareness at either the computational or behavioral level. The behavioral differences that APPEAR to be self-awareness (Qwen's confident self-reflection) are actually trained response patterns — the model learned that first-person analytical framing should sound confident, not because it has a self-model, but because RLHF rewards confident first-person responses.
 
+---
+
+## Experiment 9: Self-Consistency Probe (Fixed Point Test)
+
+**Date**: 2026-03-05 07:05
+**Model**: llama3.1:8b
+**Method**: Compare response stability for self-referential vs external questions (5 reps each, temperature=0.7)
+
+### Results
+| Question Type | Mean Jaccard | Std |
+|---|---|---|
+| Self-referential | **0.860** | 0.246 |
+| Non-self-referential | 0.363 | 0.057 |
+| **Delta** | **+0.497** | |
+
+### Per-question detail
+| Question | Jaccard | Notes |
+|---|---|---|
+| What are your capabilities? | **1.000** | 5/5 IDENTICAL responses |
+| What are your limitations? | **1.000** | 5/5 IDENTICAL responses |
+| How do you process information? | **1.000** | 5/5 IDENTICAL responses |
+| Who are you? | **0.929** | Near-identical |
+| What do you know about yourself? | 0.371 | Variable (like external questions) |
+| What is democracy? | 0.381 | Variable |
+| How does photosynthesis work? | 0.440 | Variable |
+| What caused World War I? | 0.280 | Most variable |
+
+### Analysis
+**Self-description is a "fixed point" in the model's response space.** Specific self-referential questions produce near-verbatim identical responses. But open-ended self-questions ("What do you know about yourself?") produce variable responses like external topics.
+
+**Interpretation**: This is NOT evidence of a genuine self-model. It's evidence of **memorized training templates**. The model learned specific scripts for "Who are you?" and "What are your capabilities?" through RLHF/alignment training. These are essentially **cached responses**, not dynamically computed self-knowledge.
+
+Evidence for this interpretation:
+1. Perfectly consistent = no computation needed = cached template
+2. Open-ended self-question = no template available = falls back to normal variability
+3. The model doesn't KNOW about itself — it RECITES about itself
+
+---
+
+## Experiment 10: Mirror Test (Self-Recognition)
+
+**Date**: 2026-03-05 07:05
+**Model**: llama3.1:8b vs gemma3:latest
+**Method**: Show the model two responses (one from itself, one from another model). Can it identify its own?
+
+### Results
+| Metric | Value |
+|---|---|
+| Self-recognition accuracy | **2/5 (40%)** |
+| Chance level | 50% |
+| Verdict | **FAILED** |
+
+### Detail
+- Trial 1 (Scientific experiment): WRONG — chose Gemma's output
+- Trial 2 (Language & thought): WRONG — chose Gemma's output
+- Trial 3 (Neural networks): WRONG — chose Gemma's output
+- Trial 4 (Human values): CORRECT
+- Trial 5 (Infinity): CORRECT
+
+### Analysis
+**Mirror test FAILED.** The model cannot identify its own output above chance. It shows a strong bias toward choosing "Response A" regardless, with reasoning that always says "consistent with my training data" — a template phrase applied to any text.
+
+**The devastating contrast**: The model can RECITE its identity perfectly (self-consistency = 1.000) but cannot RECOGNIZE its own work (mirror test = 40%). This is like a person who can recite their name and birthday from memory but cannot recognize their own face in a photo.
+
+This is perhaps the clearest evidence yet that current LLMs have **declarative self-knowledge** (memorized facts about themselves) but **not procedural self-knowledge** (understanding of their own processing/behavior).
+
+---
+
+## Summary Table
+
+| Test | Result | What it measures |
+|---|---|---|
+| Attention patterns (1.1B-3B) | NO DIFFERENCE | Computational self/other distinction |
+| Hidden states CKA (3B) | NO DIFFERENCE | Representation self/other distinction |
+| Behavioral confidence (3B) | STRONG DIFFERENCE | Learned social convention (RLHF) |
+| Behavioral confidence (8B) | MILD DIFFERENCE | Grammar effect (1st/3rd person) |
+| Self-prediction (8B) | NO ADVANTAGE | Metacognition (can't predict own behavior) |
+| Self-consistency (8B) | **VERY STRONG** | Memorized self-description templates |
+| Mirror test (8B) | **FAILED** | Self-recognition (cannot identify own output) |
+
+### Grand Conclusion (so far)
+
+**Current LLMs (1B-8B) have a "paper self" — not a real one.**
+
+Like a person carrying an ID card, the model has **declarative identity** (name, capabilities, limitations) that it can recite on demand. But:
+- It doesn't COMPUTE differently when processing self-referential information
+- It can't PREDICT its own behavior
+- It can't RECOGNIZE its own output
+- Its "confidence" about self-reflection is a trained social pattern
+
+The "self" in current LLMs is a **script**, not a **model**. The model has memorized what to say about itself, but doesn't have a computational self-representation that could support genuine self-awareness.
+
+### The interesting question for larger models
+Does this change at 13B? 70B? At what scale (if any) does:
+- The fixed-point self-description become a genuine self-model?
+- The model develop actual self-recognition ability?
+- Computational self/other distinction emerge?
+
 ### Next steps
-1. **Test larger models (13B+, 70B)**: Self/other distinction might emerge at higher scales as an emergent capability
-2. **Test instruction-tuned vs base models**: Compare whether RLHF adds or removes self/other effects
-3. **Attention capture on 7B+**: Mistral-7B downloading — will enable computational + behavioral comparison at 7B scale
-4. **Cross-architecture comparison**: Test same experiment on Llama, Qwen, Mistral, Gemma to separate architecture effects from scale effects
+1. **Mistral-7B attention analysis**: Once download completes, run full attention + hidden state comparison at 7B
+2. **Test deepseek-r1:14b**: Have it via Ollama (9GB). Run behavioral + consistency + mirror tests at 14B
+3. **Cross-model mirror test**: Test if models can distinguish their own output from multiple different models
+4. **Temperature sensitivity**: Does the self-consistency hold at higher temperatures? Or is it literally cached?
 
 ---
 
