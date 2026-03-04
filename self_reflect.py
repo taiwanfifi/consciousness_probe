@@ -246,28 +246,55 @@ def run_experiment(
     comp_other_vs_control = compare_attention(other_attn, control_b_attn)
     comp_self_vs_control = compare_attention(self_attn, control_b_attn)
 
+    # === PRIMARY METRIC: Per-head cosine (avoids curse of dimensionality) ===
+    hcos_so = comp_self_vs_other.get("mean_head_cosine", 0)
+    hcos_oc = comp_other_vs_control.get("mean_head_cosine", 0)
+    hcos_sc = comp_self_vs_control.get("mean_head_cosine", 0)
+
+    # Raw cosine (kept for reference)
     cos_so = comp_self_vs_other.get("mean_cosine", 0)
     cos_oc = comp_other_vs_control.get("mean_cosine", 0)
     cos_sc = comp_self_vs_control.get("mean_cosine", 0)
 
-    print(f"  Self vs Other (A):    cosine = {cos_so:.4f}")
-    print(f"  Other(A) vs Ctrl(B):  cosine = {cos_oc:.4f}  ← baseline wording variance")
-    print(f"  Self vs Ctrl(B):      cosine = {cos_sc:.4f}")
+    print("--- Per-head cosine (PRIMARY — avoids curse of dimensionality) ---")
+    print(f"  Self vs Other (A):    {hcos_so:.4f}")
+    print(f"  Other(A) vs Ctrl(B):  {hcos_oc:.4f}  ← baseline wording variance")
+    print(f"  Self vs Ctrl(B):      {hcos_sc:.4f}")
 
+    print("\n--- Raw cosine (REFERENCE — prone to dimensionality noise) ---")
+    print(f"  Self vs Other (A):    {cos_so:.4f}")
+    print(f"  Other(A) vs Ctrl(B):  {cos_oc:.4f}")
+    print(f"  Self vs Ctrl(B):      {cos_sc:.4f}")
+
+    # === ATTENTION STATISTICS CORRELATION ===
+    stat_corr_so = comp_self_vs_other.get("mean_stat_corr", {})
+    stat_corr_oc = comp_other_vs_control.get("mean_stat_corr", {})
+    print("\n--- Attention statistics correlation ---")
+    print(f"  {'Statistic':<25} {'Self/Other':>10} {'Baseline':>10} {'Delta':>10}")
+    for sn in ["entropy_per_head", "bos_attention", "self_attention_ratio",
+                "max_attention", "mean_attn_distance"]:
+        so_val = stat_corr_so.get(sn, 0)
+        oc_val = stat_corr_oc.get(sn, 0)
+        delta = so_val - oc_val
+        flag = " ***" if abs(delta) > 0.1 else ""
+        print(f"  {sn:<25} {so_val:>10.4f} {oc_val:>10.4f} {delta:>+10.4f}{flag}")
+
+    # === VERDICT (using per-head cosine) ===
     print()
-    if cos_oc < 0.5:
+    if hcos_oc < 0.3:
         print(">>> INCONCLUSIVE: Even third-person variants differ hugely")
-        print("    (baseline variance too high). The model may be too small/noisy")
-        print("    to draw conclusions about self/other distinction.")
-    elif cos_so < cos_oc * 0.8:
-        print(">>> SIGNIFICANT: Self-reflection differs MORE from other-reflection")
-        print(f"    than two other-reflections differ from each other")
-        print(f"    (self-other gap: {cos_so:.4f} vs baseline: {cos_oc:.4f}).")
+        print("    (baseline variance too high for per-head metric).")
+    elif hcos_so < hcos_oc * 0.85:
+        print(">>> SIGNIFICANT: Self-reflection attention DIVERGES from other-reflection")
+        print(f"    beyond baseline variance ({hcos_so:.4f} vs baseline {hcos_oc:.4f}).")
         print("    This suggests genuine self/other processing distinction.")
+    elif hcos_so > hcos_oc * 1.15:
+        print(">>> INTERESTING: Self-reflection is MORE SIMILAR to other-reflection")
+        print(f"    than two controls are to each other ({hcos_so:.4f} vs baseline {hcos_oc:.4f}).")
+        print("    Self/other framing may activate SIMILAR processing pathways.")
     else:
         print(">>> NO SIGNIFICANT DIFFERENCE: Self vs Other is within baseline")
-        print(f"    variance ({cos_so:.4f} vs baseline {cos_oc:.4f}).")
-        print("    The model does not appear to distinguish self from other.")
+        print(f"    variance ({hcos_so:.4f} vs baseline {hcos_oc:.4f}).")
 
     # Store all comparisons
     comparison = {
@@ -275,27 +302,31 @@ def run_experiment(
         "other_vs_control_b": comp_other_vs_control,
         "self_vs_control_b": comp_self_vs_control,
         "summary": {
-            "self_vs_other_cosine": cos_so,
-            "baseline_cosine": cos_oc,
-            "self_vs_control_cosine": cos_sc,
+            "head_cosine_self_vs_other": hcos_so,
+            "head_cosine_baseline": hcos_oc,
+            "head_cosine_self_vs_control": hcos_sc,
+            "raw_cosine_self_vs_other": cos_so,
+            "raw_cosine_baseline": cos_oc,
+            "stat_corr_self_vs_other": stat_corr_so,
+            "stat_corr_baseline": stat_corr_oc,
         },
     }
     result.comparison = comparison
 
-    # Per-layer breakdown — grouped by depth zone
-    self_other_layers = comp_self_vs_other.get("per_layer_cosine", {})
-    baseline_layers = comp_other_vs_control.get("per_layer_cosine", {})
+    # Per-layer breakdown — grouped by depth zone (using per-head cosine)
+    self_other_layers = comp_self_vs_other.get("per_layer_head_cosine", {})
+    baseline_layers = comp_other_vs_control.get("per_layer_head_cosine", {})
     if self_other_layers:
         n_layers = max(self_other_layers.keys()) + 1 if self_other_layers else 0
         third = max(1, n_layers // 3)
 
-        print("\nPer-layer cosine (self_vs_other | baseline):")
+        print("\nPer-layer head cosine (self_vs_other | baseline):")
         zones = {"SHALLOW (syntax)": [], "MIDDLE (features)": [], "DEEP (semantics)": []}
         for li, c in sorted(self_other_layers.items()):
             bl = baseline_layers.get(li, 0)
             zone = "SHALLOW (syntax)" if li < third else ("MIDDLE (features)" if li < 2 * third else "DEEP (semantics)")
             zones[zone].append((li, c, bl))
-            marker = " ***" if c < bl * 0.8 else ""
+            marker = " ***" if c < bl * 0.85 else ""
             print(f"  Layer {li:2d}: {c:.4f}  (baseline: {bl:.4f}){marker}")
 
         print("\nZone averages (self_vs_other / baseline):")
@@ -334,9 +365,13 @@ def summarize_result(result: ExperimentResult) -> str:
         f"Layers:  {result.num_layers}, Tokens: {result.num_tokens}",
         f"Time:    {result.elapsed_seconds:.1f}s",
         f"",
-        f"Three-way comparison (cosine similarity):",
-        f"  Self vs Other:        {summary.get('self_vs_other_cosine', 'N/A')}",
-        f"  Other vs Control B:   {summary.get('baseline_cosine', 'N/A')}  ← baseline",
-        f"  Self vs Control B:    {summary.get('self_vs_control_cosine', 'N/A')}",
+        f"Per-head cosine (primary metric):",
+        f"  Self vs Other:   {summary.get('head_cosine_self_vs_other', 'N/A')}",
+        f"  Baseline:        {summary.get('head_cosine_baseline', 'N/A')}",
+        f"  Self vs Ctrl:    {summary.get('head_cosine_self_vs_control', 'N/A')}",
+        f"",
+        f"Raw cosine (reference):",
+        f"  Self vs Other:   {summary.get('raw_cosine_self_vs_other', 'N/A')}",
+        f"  Baseline:        {summary.get('raw_cosine_baseline', 'N/A')}",
     ]
     return "\n".join(lines)

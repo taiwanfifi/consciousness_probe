@@ -370,49 +370,143 @@ def _interpret_patterns(
 # Utility: compare two attention captures
 # ---------------------------------------------------------------------------
 
+def _compute_attention_stats(attn: torch.Tensor) -> dict:
+    """
+    Compute low-dimensional statistics from attention weights.
+    These are more stable than raw attention matrices for comparison.
+
+    Args:
+        attn: tensor of shape (batch, heads, seq, seq) — single layer
+
+    Returns:
+        dict of statistics (all numpy arrays, small and comparable)
+    """
+    attn = attn[0].float()  # Remove batch dim → (heads, seq, seq)
+    num_heads, seq_len, _ = attn.shape
+
+    stats = {}
+
+    # 1. Entropy per head: how "spread out" is attention? (H heads,)
+    eps = 1e-10
+    log_attn = (attn + eps).log()
+    entropy = -(attn * log_attn).sum(dim=-1)  # (heads, seq)
+    stats["entropy_per_head"] = entropy.mean(dim=-1).numpy()  # (heads,)
+
+    # 2. Attention to first token (BOS sink) per head
+    stats["bos_attention"] = attn[:, :, 0].mean(dim=-1).numpy()  # (heads,)
+
+    # 3. Diagonal dominance: how much does each token attend to itself?
+    diag = torch.diagonal(attn, dim1=-2, dim2=-1)  # (heads, seq)
+    stats["self_attention_ratio"] = diag.mean(dim=-1).numpy()  # (heads,)
+
+    # 4. Attention concentration: max attention weight per head (averaged over queries)
+    stats["max_attention"] = attn.max(dim=-1).values.mean(dim=-1).numpy()  # (heads,)
+
+    # 5. Mean attention distance: average distance between query and key
+    if seq_len > 1:
+        positions = torch.arange(seq_len, dtype=torch.float32)
+        distances = (positions.unsqueeze(0) - positions.unsqueeze(1)).abs()  # (seq, seq)
+        mean_dist = (attn * distances.unsqueeze(0)).sum(dim=-1).mean(dim=-1)  # (heads,)
+        stats["mean_attn_distance"] = mean_dist.numpy()
+    else:
+        stats["mean_attn_distance"] = np.zeros(num_heads)
+
+    return stats
+
+
 def compare_attention(
     attn_a: dict[int, torch.Tensor],
     attn_b: dict[int, torch.Tensor],
 ) -> dict:
     """
-    Compare two attention captures quantitatively.
+    Compare two attention captures using multiple metrics:
 
-    Returns dict with:
-        - per_layer_cosine: cosine similarity of flattened attention per layer
-        - per_layer_kl: KL divergence per layer (A || B)
-        - mean_cosine: average cosine similarity across layers
-        - mean_kl: average KL divergence
+    1. Per-head cosine: Compare each head independently (avoids curse of dimensionality)
+    2. Attention statistics: Compare low-dimensional features (entropy, concentration, etc.)
+    3. Raw cosine (original metric, kept for reference)
+
+    Returns comprehensive comparison dict.
     """
     common_layers = sorted(set(attn_a.keys()) & set(attn_b.keys()))
     if not common_layers:
         return {"error": "No common layers to compare"}
 
-    cosines = []
-    kl_divs = []
+    # --- Metric 1: Per-head cosine similarity ---
+    per_layer_head_cosines = {}
+    per_layer_mean_head_cosine = {}
 
+    for li in common_layers:
+        a = attn_a[li][0].float()  # (heads, seq, seq)
+        b = attn_b[li][0].float()
+        min_seq = min(a.shape[-1], b.shape[-1])
+        a = a[:, :min_seq, :min_seq]
+        b = b[:, :min_seq, :min_seq]
+
+        num_heads = min(a.shape[0], b.shape[0])
+        head_cosines = []
+        for h in range(num_heads):
+            ah = a[h].flatten()
+            bh = b[h].flatten()
+            cos = torch.nn.functional.cosine_similarity(
+                ah.unsqueeze(0), bh.unsqueeze(0)
+            ).item()
+            head_cosines.append(cos)
+
+        per_layer_head_cosines[li] = head_cosines
+        per_layer_mean_head_cosine[li] = float(np.mean(head_cosines))
+
+    mean_head_cosine = float(np.mean(list(per_layer_mean_head_cosine.values())))
+
+    # --- Metric 2: Attention statistics comparison ---
+    per_layer_stat_corr = {}
+    stat_names = ["entropy_per_head", "bos_attention", "self_attention_ratio",
+                  "max_attention", "mean_attn_distance"]
+
+    for li in common_layers:
+        stats_a = _compute_attention_stats(attn_a[li])
+        stats_b = _compute_attention_stats(attn_b[li])
+
+        stat_correlations = {}
+        for sn in stat_names:
+            va = stats_a[sn]
+            vb = stats_b[sn]
+            min_len = min(len(va), len(vb))
+            va, vb = va[:min_len], vb[:min_len]
+            if np.std(va) > 0 and np.std(vb) > 0:
+                corr = float(np.corrcoef(va, vb)[0, 1])
+            else:
+                corr = 1.0  # constant vectors are "identical"
+            stat_correlations[sn] = corr
+
+        per_layer_stat_corr[li] = stat_correlations
+
+    # Average stat correlations across layers
+    mean_stat_corr = {}
+    for sn in stat_names:
+        vals = [per_layer_stat_corr[li][sn] for li in common_layers
+                if not np.isnan(per_layer_stat_corr[li][sn])]
+        mean_stat_corr[sn] = float(np.mean(vals)) if vals else 0.0
+
+    # --- Metric 3: Raw cosine (original, for reference) ---
+    raw_cosines = []
     for li in common_layers:
         a = attn_a[li].float().flatten()
         b = attn_b[li].float().flatten()
-
-        # Truncate to same length (different sequence lengths)
         min_len = min(len(a), len(b))
-        a, b = a[:min_len], b[:min_len]
-
-        # Cosine similarity
-        cos = torch.nn.functional.cosine_similarity(a.unsqueeze(0), b.unsqueeze(0)).item()
-        cosines.append(cos)
-
-        # KL divergence (with smoothing)
-        eps = 1e-8
-        a_norm = (a + eps) / (a + eps).sum()
-        b_norm = (b + eps) / (b + eps).sum()
-        kl = (a_norm * (a_norm / b_norm).log()).sum().item()
-        kl_divs.append(kl)
+        cos = torch.nn.functional.cosine_similarity(
+            a[:min_len].unsqueeze(0), b[:min_len].unsqueeze(0)
+        ).item()
+        raw_cosines.append(cos)
 
     return {
-        "per_layer_cosine": {li: c for li, c in zip(common_layers, cosines)},
-        "per_layer_kl": {li: k for li, k in zip(common_layers, kl_divs)},
-        "mean_cosine": float(np.mean(cosines)),
-        "mean_kl": float(np.mean(kl_divs)),
+        # Per-head comparison (primary metric)
+        "per_layer_head_cosine": per_layer_mean_head_cosine,
+        "mean_head_cosine": mean_head_cosine,
+        # Attention statistics correlation
+        "per_layer_stat_corr": per_layer_stat_corr,
+        "mean_stat_corr": mean_stat_corr,
+        # Raw cosine (reference only)
+        "per_layer_cosine": {li: c for li, c in zip(common_layers, raw_cosines)},
+        "mean_cosine": float(np.mean(raw_cosines)),
         "num_layers_compared": len(common_layers),
     }

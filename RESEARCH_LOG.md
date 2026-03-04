@@ -70,20 +70,72 @@ All three pairs show cosine ~0.03. At 3B scale, attention patterns are STILL too
 
 ---
 
-## Experiment 3: Llama-2-7B (in progress)
+## CRITICAL METHODOLOGY FIX: Curse of Dimensionality
 
-**Date**: 2026-03-05
-**Model**: meta-llama/Llama-2-7b-hf (7B params, 32 layers)
+**Date**: 2026-03-05 06:00
+**Discovery**: The raw cosine similarity metric was fundamentally broken.
+
+When we flatten a full attention matrix (H heads x seq x seq) into a single vector and compute cosine similarity, the resulting vector has thousands of dimensions. In high-dimensional spaces, **random vectors are nearly orthogonal by default** — cosine similarity converges to ~0 regardless of actual similarity.
+
+This explains ALL previous results:
+- TinyLlama Other vs Control: 0.026 ← not "noisy model" — broken metric
+- Qwen2.5-3B all pairs ~0.03 ← same broken metric
+
+### Fix: Three new metrics
+1. **Per-head cosine**: Compare each attention head independently (each head = seq x seq, much lower dimensionality), then average across heads per layer.
+2. **Attention statistics correlation**: Compare low-dimensional features: entropy per head, BOS attention, self-attention ratio, max attention, mean distance. These are ~32-dimensional vectors (one value per head), highly stable.
+3. **Raw cosine**: Kept for reference only.
+
+## Experiment 3: Qwen2.5-3B (RERUN with fixed metrics)
+
+**Date**: 2026-03-05 06:15
+**Model**: Qwen/Qwen2.5-3B (3B params, 36 layers)
 **Prompt**: "Am I aware?"
 **Device**: MPS
 
-### Motivation
-2x scale jump from 3B. Also different architecture (Llama vs Qwen). If 7B still shows noise-floor cosine, we need to rethink the approach entirely.
+### Results — Per-head cosine (PRIMARY)
+| Comparison | Per-head Cosine | Raw Cosine |
+|---|---|---|
+| Self vs Other | 0.7712 | 0.0301 |
+| Other vs Control B | 0.7727 | 0.0302 |
+| Self vs Control B | 0.7330 | 0.0128 |
 
-**New addition**: Per-layer depth zone analysis (shallow/mid/deep) to test whether self/other differences are concentrated in semantic layers vs syntactic layers.
+### Attention Statistics Correlation
+| Statistic | Self/Other | Baseline | Delta |
+|---|---|---|---|
+| entropy_per_head | 0.9993 | 0.9997 | -0.0004 |
+| bos_attention | 0.9990 | 0.9995 | -0.0006 |
+| self_attention_ratio | 0.9999 | 0.9998 | +0.0001 |
+| max_attention | 0.9990 | 0.9995 | -0.0005 |
+| mean_attn_distance | 0.9995 | 0.9996 | -0.0002 |
 
-### Results
-*(Running...)*
+### Depth Zone Analysis
+| Zone | Self/Other | Baseline | Delta |
+|---|---|---|---|
+| SHALLOW (syntax) | 0.7965 | 0.7962 | +0.0003 |
+| MIDDLE (features) | 0.7816 | 0.7807 | +0.0009 |
+| DEEP (semantics) | 0.7355 | 0.7412 | **-0.0057** |
+
+### Analysis
+**NO SIGNIFICANT DIFFERENCE** overall — but the data is now actually interpretable!
+
+Key findings:
+1. The raw cosine metric was useless (~0.03 for everything). Per-head cosine gives meaningful values (~0.77).
+2. Self vs Other (0.7712) is virtually identical to Baseline (0.7727). The model does NOT distinguish self from other at 3B.
+3. Attention statistics show near-perfect correlation (0.999) — processing patterns are almost identical.
+4. **Faint signal in deep layers**: DEEP zone Δ=-0.006 (self/other slightly MORE different than baseline). This is tiny but consistent with the depth hypothesis.
+5. Overall attention drops in deeper layers (0.80 → 0.74) — all conditions become less similar to each other at deeper levels.
+
+### Significance
+This is NOT a null result — it's an informative negative. At 3B scale, the model processes self-referential and third-party information nearly identically. The self/other distinction we're looking for does not emerge at this scale.
+
+---
+
+## Experiment 4: Scaling up to 7B+ (in progress)
+
+**Date**: 2026-03-05 06:20
+**Model**: TBD (downloading Mistral-7B or using TinyLlama rerun with fixed metrics)
+**Motivation**: With fixed metrics, we can now meaningfully test whether the deep-layer delta grows with model scale.
 
 ---
 
