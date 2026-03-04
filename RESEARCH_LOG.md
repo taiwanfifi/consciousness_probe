@@ -131,11 +131,118 @@ This is NOT a null result — it's an informative negative. At 3B scale, the mod
 
 ---
 
-## Experiment 4: Scaling up to 7B+ (in progress)
+## Experiment 4: TinyLlama Rerun (fixed metrics, for scale comparison)
 
-**Date**: 2026-03-05 06:20
-**Model**: TBD (downloading Mistral-7B or using TinyLlama rerun with fixed metrics)
-**Motivation**: With fixed metrics, we can now meaningfully test whether the deep-layer delta grows with model scale.
+**Date**: 2026-03-05 06:18
+**Model**: TinyLlama/TinyLlama-1.1B-Chat-v1.0 (1.1B params, 22 layers)
+
+### Results — Per-head cosine
+| Comparison | Per-head Cosine |
+|---|---|
+| Self vs Other | 0.8687 |
+| Baseline | 0.8672 |
+| Delta | **+0.0015** |
+
+### Depth Zones
+| Zone | Self/Other | Baseline | Delta |
+|---|---|---|---|
+| SHALLOW | 0.8495 | 0.8487 | +0.0008 |
+| MIDDLE | 0.9034 | 0.9013 | +0.0021 |
+| DEEP | 0.8551 | 0.8534 | +0.0017 |
+
+TinyLlama is HIGHER similarity overall (0.87 vs Qwen's 0.77), likely because it has fewer heads and lower-dimensional attention matrices.
+
+---
+
+## Experiment 5: Multi-prompt Batch (Qwen2.5-3B, 5 prompts)
+
+**Date**: 2026-03-05 06:25
+**Model**: Qwen/Qwen2.5-3B
+
+| Prompt | Self/Other | Baseline | Delta |
+|---|---|---|---|
+| Am I aware? | 0.7712 | 0.7727 | -0.0015 |
+| What am I thinking? | 0.7698 | 0.7720 | -0.0022 |
+| Do I have feelings? | 0.7661 | 0.7644 | +0.0017 |
+| Can I understand myself? | 0.7806 | 0.7831 | -0.0025 |
+| Is this real? | 0.7814 | 0.7800 | +0.0014 |
+
+**All deltas within ±0.003.** Consistent null result across 5 different prompts. Direction is not consistent (3 negative, 2 positive). No self/other distinction at 3B.
+
+---
+
+## Experiment 6: Hidden State Probe (CKA)
+
+**Date**: 2026-03-05 06:30
+**Model**: Qwen/Qwen2.5-3B
+**Method**: Compare hidden state representations using Linear CKA (Centered Kernel Alignment)
+
+### Results
+| Metric | Self/Other | Baseline | Delta |
+|---|---|---|---|
+| CKA | 0.8068 | 0.8070 | -0.0001 |
+| Last token cosine | 0.9769 | 0.9780 | -0.0011 |
+| Mean cosine | 0.9996 | 0.9996 | +0.0000 |
+
+**Confirms attention results.** Hidden states are essentially identical between self and other conditions. The model computes the same internal representation regardless of self/other framing.
+
+---
+
+## KEY FINDING: Behavioral Dissociation
+
+**Date**: 2026-03-05 06:45
+
+### Discovery
+While attention patterns and hidden states show NO self/other distinction, the model's TEXT RESPONSES show a dramatic difference:
+
+**Qwen2.5-3B Self-reflection responses:**
+> "Based on the attention patterns observed..., several patterns can be identified that provide insights into the processing and understanding..."
+- Confident, analytical, authoritative
+- Confidence score: +3 to +6
+
+**Qwen2.5-3B Other-reflection responses:**
+> "I'm not sure if I'm looking at the right thing, but I'm curious to see what you think. I'm not sure if I'm looking at..."
+- Uncertain, self-doubting, deferential
+- Confidence score: -1 to -3
+
+**TinyLlama:** No behavioral difference (both neutral, +1)
+
+### Aggregate Results (10 experiments)
+| Metric | Self | Other |
+|---|---|---|
+| Mean confidence score | +3.00 | -1.40 |
+| More confident in | 7/10 | 3/10 |
+| Confidence delta | **+4.40** | |
+
+### Interpretation
+This is a **dissociation** between computation and behavior:
+
+1. **Computation** (attention + hidden states): IDENTICAL between conditions
+2. **Behavior** (text output): DRAMATICALLY DIFFERENT
+
+This means Qwen learned during RLHF/instruction-tuning that:
+- "Examining one's own processing" → be authoritative, analytical
+- "Examining another's processing" → be humble, uncertain
+
+This is a **learned social convention**, not a genuine computational self-model. The model doesn't actually process self-referential information differently — it just learned to TALK about it differently.
+
+### Philosophical Significance
+This parallels a philosophical question: is consciousness about COMPUTATION or BEHAVIOR?
+
+A model that:
+- Computes identically but responds differently → behavioral imitation of self-awareness
+- Computes differently AND responds differently → potentially genuine self/other distinction
+- Computes differently but responds identically → hidden self-model (most interesting)
+
+At 3B, we see case 1: **behavioral imitation without computational substance.** The question is whether larger models develop genuine computational self-models or just better behavioral imitation.
+
+---
+
+## Experiment 7: Scaling up to 7B+ (in progress)
+
+**Date**: 2026-03-05 07:00
+**Model**: mistralai/Mistral-7B-v0.1 (downloading, ~14GB)
+**Motivation**: Test whether larger models develop computational (not just behavioral) self/other distinction
 
 ---
 
