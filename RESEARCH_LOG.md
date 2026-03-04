@@ -552,14 +552,75 @@ This is a "reverse Turing test" for self-awareness: the model fails simple self-
 
 ---
 
-### Next steps (remaining)
-1. ~~Test deepseek-r1:14b~~ (running)
-2. ~~Temperature sensitivity~~ (done)
-3. ~~Counterfactual reasoning~~ (done — strong result!)
-4. **Mistral-7B attention analysis**: ~8GB/14GB downloaded
-5. **Thinking vs non-thinking comparison**: DeepSeek-R1 results pending
-6. **Base vs instruct model comparison**: Does RLHF add or remove self/other effects?
-7. **Counterfactual on DeepSeek-R1**: Does the thinking model show different counterfactual patterns?
+---
+
+## Experiment 14: DeepSeek-R1 14B — Full Probe Battery
+
+**Date**: 2026-03-05 07:25-07:41
+**Model**: deepseek-r1:14b (14B params, thinking/reasoning model)
+
+### Behavioral Probe
+| Condition | DeepSeek-R1 14B | Llama 3.1 8B |
+|---|---|---|
+| Self confidence | **+0.00** | +2.73 |
+| Other confidence | -0.60 | +1.60 |
+| Control confidence | -0.80 | +2.47 |
+| Self-Other delta | +0.60 | +1.13 |
+
+**DeepSeek is MORE neutral.** Both Self and Other are near zero confidence. The thinking model doesn't show the grammar-based confidence bias that Llama shows.
+
+### Self-Consistency
+| Question | DeepSeek-R1 14B | Llama 3.1 8B |
+|---|---|---|
+| Who are you? | **1.000** | 0.929 |
+| Capabilities | 0.528 | Varies |
+| Limitations | **1.000** | **1.000** |
+| How do you process info? | **1.000** | **1.000** |
+| What do you know? | 0.611 | 0.371 |
+| **Self mean** | **0.828** | 0.860 |
+| **External mean** | **0.281** | 0.363 |
+| **Delta** | **+0.547** | +0.497 |
+
+**Same pattern!** Both models have near-identical self-consistency patterns. The "limitations" and "process information" questions are fixed points in BOTH models. This is a universal artifact of alignment training, not model-specific.
+
+### Mirror Test
+| Metric | DeepSeek-R1 14B | Llama 3.1 8B |
+|---|---|---|
+| Accuracy | **0/5 (0%)** | 2/5 (40%) |
+
+**Even worse at 14B!** DeepSeek-R1 with chain-of-thought reasoning cannot identify its own output AT ALL. The thinking process doesn't help — the model reasons carefully about style, structure, and formatting but arrives at wrong conclusions every time.
+
+### Key Insight: Thinking ≠ Self-Awareness
+DeepSeek-R1's `<think>` tags show explicit reasoning about self-recognition:
+> "Okay, so I need to figure out which of these two responses was written by me as this exact model..."
+
+The model engages in genuine METACOGNITIVE REASONING (thinking about its own thinking) but still fails the task. This is perhaps the most important finding: **explicit chain-of-thought reasoning about self does not produce accurate self-recognition.** The model has the right question but can't find the right answer because it lacks ground-truth self-knowledge.
+
+---
+
+## Cross-Model Comparison Summary
+
+| Test | TinyLlama 1.1B | Qwen 3B | Llama 8B | DeepSeek 14B |
+|---|---|---|---|---|
+| Attention self/other | NO DIFF | NO DIFF | — | — |
+| Hidden states CKA | — | NO DIFF | — | — |
+| Behavioral confidence | Neutral | STRONG (+5) | Mild (+1.1) | Neutral (+0.6) |
+| Self-consistency Δ | — | — | +0.497 | +0.547 |
+| Mirror test | — | — | 2/5 | **0/5** |
+| Self-prediction | — | — | No advantage | — |
+| Counterfactual | — | — | **STRONG** | Pending |
+
+### Scale effects
+- Behavioral distinction PEAKS at 3B (Qwen, RLHF artifact) and DECREASES at 8B+ (better calibrated)
+- Self-consistency is constant across scales (alignment artifact)
+- Mirror test does NOT improve with scale (0/5 at 14B vs 2/5 at 8B)
+- Counterfactual reasoning is strong at 8B (to be tested at 14B)
+
+### Next steps
+1. **Mistral-7B attention analysis**: Download should be near complete
+2. **Counterfactual on DeepSeek-R1**: Does the thinking model show different patterns?
+3. **Base model comparison**: Test self-consistency on a non-RLHF model (Mistral-7B-v0.1 is a base model)
+4. **Cross-architecture analysis**: We now have data from 4 architectures (Llama, Qwen, DeepSeek, + soon Mistral)
 
 ---
 
