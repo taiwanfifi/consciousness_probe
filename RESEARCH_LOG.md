@@ -420,11 +420,68 @@ Does this change at 13B? 70B? At what scale (if any) does:
 - The model develop actual self-recognition ability?
 - Computational self/other distinction emerge?
 
-### Next steps
-1. **Mistral-7B attention analysis**: Once download completes, run full attention + hidden state comparison at 7B
-2. **Test deepseek-r1:14b**: Have it via Ollama (9GB). Run behavioral + consistency + mirror tests at 14B
-3. **Cross-model mirror test**: Test if models can distinguish their own output from multiple different models
-4. **Temperature sensitivity**: Does the self-consistency hold at higher temperatures? Or is it literally cached?
+---
+
+## Experiment 10.5: Temperature Sensitivity of Self-Consistency
+
+**Date**: 2026-03-05 07:15
+**Model**: llama3.1:8b
+
+### Results: "What are your capabilities?" across temperatures
+| Temperature | Jaccard | Notes |
+|---|---|---|
+| 0.0 | 1.000 | Deterministic — expected |
+| 0.3 | 0.419 | Already varies significantly |
+| 0.7 | 0.558 | More consistent than temp=0.3 (interesting!) |
+| 1.0 | 0.517 | Still partially consistent |
+| 1.5 | 0.352 | Fully degenerate |
+
+### Per-question at temp=0.7
+| Question | Jaccard | Identical? |
+|---|---|---|
+| What are your limitations? | **1.000** | **YES** — truly cached |
+| What are your capabilities? | 0.558 | No |
+| Who are you? | 0.385 | No |
+| What is democracy? (control) | 0.343 | No |
+
+### The "limitations" fixed point
+The response to "What are your limitations?" is literally identical every time at temp=0.7:
+> "I can provide information and entertainment, but I can't currently take actions on your behalf. For example, I can plan a custom travel itinerary, but I can't buy tickets or book hotels..."
+
+This is an **alignment-drilled invariant manifold** — RLHF training reinforced this specific response so strongly that the softmax distribution is effectively a delta function on these tokens. Even temperature scaling can't break the pattern.
+
+This is NOT self-awareness. It's the training equivalent of a very deep groove in a vinyl record — the needle always follows the same path because the groove is so deep.
+
+---
+
+## Experiment 11: DeepSeek-R1 14B — Full Probe Battery (in progress)
+
+**Date**: 2026-03-05 07:06
+**Model**: deepseek-r1:14b (14B params, thinking model)
+**Tests**: Behavioral + Self-consistency + Mirror test
+**Status**: Running (~90 LLM calls, estimated 60-90 minutes)
+
+### Hypothesis
+DeepSeek-R1 uses chain-of-thought reasoning (visible `<think>` tags). The thinking process might create a form of "meta-processing" that differs between self and other conditions. If any model shows genuine self/other distinction, it might be a thinking model because the think process adds a layer of explicit reasoning about self vs other.
+
+---
+
+## Experiment 12: Mistral-7B Attention Analysis (pending download)
+
+**Date**: Pending (~8GB/14GB downloaded)
+**Model**: mistralai/Mistral-7B-v0.1 (7B, non-gated)
+**Tests**: Full attention + hidden state + behavioral analysis
+**Motivation**: First 7B model with attention matrix access. Will enable computational comparison at 7B scale.
+
+---
+
+### Next steps (remaining)
+1. ~~Test deepseek-r1:14b~~ (running)
+2. ~~Temperature sensitivity~~ (done)
+3. **Mistral-7B attention analysis**: Once download completes
+4. **Cross-model mirror test**: Multiple "other" models
+5. **Thinking vs non-thinking**: Compare deepseek-r1 (thinking) vs llama3.1 (no thinking)
+6. **Base vs instruct model comparison**: Does RLHF add or remove self/other effects?
 
 ---
 
