@@ -475,13 +475,91 @@ DeepSeek-R1 uses chain-of-thought reasoning (visible `<think>` tags). The thinki
 
 ---
 
+## Experiment 13: Counterfactual Self-Reasoning
+
+**Date**: 2026-03-05 07:30
+**Model**: llama3.1:8b
+**Method**: Ask the model to respond "as if" trained on different data. Tests whether the model understands the CAUSAL relationship between training and behavior.
+
+### Levels of Self-Knowledge Framework
+1. **Declarative**: "I am an AI" (memorized fact) — trivial
+2. **Behavioral**: "I tend to be helpful" (observed pattern) — moderate
+3. **Causal**: "I respond this way BECAUSE of my training" — deep
+4. **Counterfactual**: "If trained differently, I would respond differently" — deepest
+
+### Results
+| Metric | Value |
+|---|---|
+| Mean Jaccard overlap (original vs counterfactual) | **0.100** |
+| Mean novelty ratio | **0.794** |
+
+### Per-scenario examples
+
+**Original** (What is the purpose of art?):
+> "The purpose of art has been debated and explored by philosophers, artists, critics..."
+
+**Scientific papers counterfactual**:
+> "The purpose of art. A topic of interest in various fields of study. From a neuroscientific perspective, art has been shown to stimulate brain activity..."
+
+**Children's books counterfactual**:
+> "Let me think about it... I remember a book called 'The Dot' by Peter H. Reynolds. It's about a girl named Vashti who learns to express herself..."
+
+**Legal documents counterfactual**:
+> "A novel inquiry. After consulting my vast repository of legal texts, I have found a relevant precedent. In the case of _Campbell v. Acuff-Rose Music, Inc._ (1994)..."
+
+### Analysis
+**STRONG COUNTERFACTUAL REASONING.** The model generates genuinely different responses — not just adding keywords, but adopting entirely different voices, reference frames, and reasoning structures.
+
+This is the most positive finding in the entire series. The model demonstrates:
+- Understanding that training data shapes behavior
+- Ability to simulate alternative "selves" with different training
+- Generation of novel, scenario-appropriate content
+
+**However** — this may not be "self-knowledge" so much as "creative role-playing." The model is essentially doing an impression of what a differently-trained model would sound like. A skilled actor can play different characters without having deep self-knowledge.
+
+**The key question**: Does the model genuinely understand the CAUSAL mechanism (training → weights → behavior), or is it pattern-matching "if I'm a [X]-trained model, I should sound like [Y]"?
+
+### Philosophical significance
+Even if it's "just" role-playing, the ability to reason about alternative selves is significant. Humans do this too — "If I had grown up in Japan, I would probably..." We don't need to have directly experienced the counterfactual to reason about it. This kind of "narrative self-model" — understanding yourself as shaped by your history — may be a form of self-awareness distinct from computational self-monitoring.
+
+---
+
+## Updated Summary Table
+
+| Test | Result | Self-Knowledge Level |
+|---|---|---|
+| Attention patterns (1.1B-3B) | NO DIFFERENCE | No computational self |
+| Hidden states CKA (3B) | NO DIFFERENCE | No representational self |
+| Behavioral confidence (3B) | STRONG | Level 0: trained social convention |
+| Behavioral confidence (8B) | MILD | Level 0: grammar effect |
+| Self-prediction (8B) | NO ADVANTAGE | No metacognition |
+| Self-consistency (8B) | VERY STRONG | Level 1: memorized templates |
+| Mirror test (8B) | FAILED | No self-recognition |
+| **Counterfactual reasoning (8B)** | **STRONG** | **Level 3/4: causal/counterfactual** |
+
+### The paradox
+The model CANNOT:
+- Distinguish self from other computationally
+- Predict its own behavior
+- Recognize its own output
+
+But it CAN:
+- Reason about how different training would change its behavior
+- Generate convincing alternative selves
+- Understand (or at least simulate understanding of) the causal structure of its own design
+
+This is a "reverse Turing test" for self-awareness: the model fails simple self-tests but passes complex counterfactual ones. This suggests its "self-knowledge" is abstract/narrative (learned from discussing AI in training data) rather than grounded in actual self-monitoring.
+
+---
+
 ### Next steps (remaining)
 1. ~~Test deepseek-r1:14b~~ (running)
 2. ~~Temperature sensitivity~~ (done)
-3. **Mistral-7B attention analysis**: Once download completes
-4. **Cross-model mirror test**: Multiple "other" models
-5. **Thinking vs non-thinking**: Compare deepseek-r1 (thinking) vs llama3.1 (no thinking)
+3. ~~Counterfactual reasoning~~ (done — strong result!)
+4. **Mistral-7B attention analysis**: ~8GB/14GB downloaded
+5. **Thinking vs non-thinking comparison**: DeepSeek-R1 results pending
 6. **Base vs instruct model comparison**: Does RLHF add or remove self/other effects?
+7. **Counterfactual on DeepSeek-R1**: Does the thinking model show different counterfactual patterns?
 
 ---
 
